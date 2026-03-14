@@ -1,32 +1,20 @@
-const mysql = require("mysql2");
+const Database = require("better-sqlite3");
+const path = require("path");
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "shading_app",
-});
+const db = new Database(path.join(__dirname, "shading.db"));
 
-db.connect((err) => {
-  if (err) {
-    console.error("DB connection failed:", err);
-    process.exit(1);
-  }
-  console.log("Connected to MySQL");
+// Auto-create table on startup
+db.exec(`
+  CREATE TABLE IF NOT EXISTS problems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question TEXT NOT NULL,
+    correct_count INTEGER NOT NULL,
+    explanation TEXT DEFAULT '',
+    color TEXT DEFAULT '#4ade80',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
 
-  // Create table if not exists
-  db.query(`
-    CREATE TABLE IF NOT EXISTS problems (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      question VARCHAR(255) NOT NULL,
-      correct_count INT NOT NULL,
-      explanation TEXT,
-      color VARCHAR(20) DEFAULT '#4ade80',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `, (err) => {
-    if (err) console.error("Table creation failed:", err);
-  });
-});
+console.log("SQLite connected — shading.db ready");
 
 module.exports = db;

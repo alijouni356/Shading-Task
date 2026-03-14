@@ -8,19 +8,23 @@ app.use(express.json());
 
 // GET a random problem
 app.get("/api/problem", (req, res) => {
-  db.query("SELECT * FROM problems ORDER BY RAND() LIMIT 1", (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!result.length) return res.status(404).json({ error: "No problems found" });
-    res.json(result[0]);
-  });
+  try {
+    const problem = db.prepare("SELECT * FROM problems ORDER BY RANDOM() LIMIT 1").get();
+    if (!problem) return res.status(404).json({ error: "No problems found" });
+    res.json(problem);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET all problems (admin)
 app.get("/api/problems", (req, res) => {
-  db.query("SELECT * FROM problems ORDER BY id DESC", (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(result);
-  });
+  try {
+    const problems = db.prepare("SELECT * FROM problems ORDER BY id DESC").all();
+    res.json(problems);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // CREATE a problem (admin)
@@ -29,40 +33,43 @@ app.post("/api/problem", (req, res) => {
   if (!question || !correct_count) {
     return res.status(400).json({ error: "question and correct_count are required" });
   }
-  db.query(
-    "INSERT INTO problems (question, correct_count, explanation, color) VALUES (?, ?, ?, ?)",
-    [question, correct_count, explanation || "", color || "#4ade80"],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json({ message: "Problem created", id: result.insertId });
-    }
-  );
+  try {
+    const stmt = db.prepare(
+      "INSERT INTO problems (question, correct_count, explanation, color) VALUES (?, ?, ?, ?)"
+    );
+    const result = stmt.run(question, correct_count, explanation || "", color || "#4ade80");
+    res.json({ message: "Problem created", id: result.lastInsertRowid });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // DELETE a problem (admin)
 app.delete("/api/problem/:id", (req, res) => {
-  db.query("DELETE FROM problems WHERE id = ?", [req.params.id], (err) => {
-    if (err) return res.status(500).json({ error: err.message });
+  try {
+    db.prepare("DELETE FROM problems WHERE id = ?").run(req.params.id);
     res.json({ message: "Problem deleted" });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // CHECK student answer
 app.post("/api/check", (req, res) => {
   const { shadedCount, problemId } = req.body;
-  db.query("SELECT * FROM problems WHERE id = ?", [problemId], (err, result) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!result.length) return res.status(404).json({ error: "Problem not found" });
+  try {
+    const problem = db.prepare("SELECT * FROM problems WHERE id = ?").get(problemId);
+    if (!problem) return res.status(404).json({ error: "Problem not found" });
 
-    const problem = result[0];
     const correct = shadedCount === problem.correct_count;
-
     res.json({
       correct,
       correctCount: problem.correct_count,
       explanation: problem.explanation,
     });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
